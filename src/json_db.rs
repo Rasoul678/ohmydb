@@ -131,13 +131,15 @@ impl JsonDB {
     /// # Returns
     ///
     /// A `Result` indicating whether the table was successfully added. If the table already exists, this function will return `Ok(())`.
-    pub fn add_table(&mut self, table_name: &str) -> Result<(), io::Error> {
+    pub async fn add_table(&mut self, table_name: &str) -> Result<(), io::Error> {
         let value = Arc::make_mut(&mut self.value);
 
         if !value.contains_key(table_name) {
             value.insert(table_name.to_string(), HashSet::new());
             self.tables.insert(table_name.to_string());
         }
+
+        self.save().await?;
 
         Ok(())
     }
