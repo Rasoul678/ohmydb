@@ -31,9 +31,17 @@ impl JsonDB {
     ///
     /// A `Result` containing a new `JsonDB` instance if the operation is successful,
     /// or an `io::Error` if there is a problem reading or creating the file.
-    pub async fn new() -> Result<JsonDB, io::Error> {
+    pub async fn new(db_name: &str) -> Result<JsonDB, io::Error> {
+        let db_path;
+
+        if db_name.is_empty() {
+            db_path = format!("ohmydb.json")
+        } else {
+            db_path = format!("{}.json", db_name.to_lowercase().trim())
+        }
+
         let dir_path = std::env::current_dir()?;
-        let file_path = dir_path.join("db.json");
+        let file_path = dir_path.join(db_path);
 
         let file = OpenOptions::new()
             .read(true)
@@ -62,6 +70,31 @@ impl JsonDB {
         };
 
         Ok(db)
+    }
+
+    pub fn get_db_path(&self) -> &str {
+        self.path.as_os_str().to_str().unwrap_or_default()
+    }
+
+    pub fn get_db_tables(&self) -> Vec<String> {
+        self.tables
+            .iter()
+            .map(Clone::clone)
+            .collect::<Vec<String>>()
+    }
+
+    pub fn get_db_values(&self) -> Vec<(String, Vec<ToDo>)> {
+        Arc::clone(&self.value)
+            .iter()
+            .map(|table| {
+                let (t_name, t_records_hash) = table;
+                let t_records_vec = t_records_hash
+                    .iter()
+                    .map(Clone::clone)
+                    .collect::<Vec<ToDo>>();
+                (t_name.clone(), t_records_vec)
+            })
+            .collect::<Vec<(String, Vec<ToDo>)>>()
     }
 
     /// Retrieves a mutable reference to the HashSet of `ToDo` items for the specified table in the JSON database.
