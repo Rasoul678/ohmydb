@@ -1,5 +1,3 @@
-// #![allow(dead_code)]
-
 use crate::get_nested_value;
 use crate::types::{Comparator, MethodName, Runner};
 use colored::*;
@@ -7,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::io::{self, ErrorKind};
 use std::path::PathBuf;
@@ -18,18 +16,18 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[derive(Clone)]
 pub struct JsonDB<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
 {
     tables: HashSet<String>,
     path: PathBuf,
-    file: Arc<File>,
+    _file: Arc<File>,
     value: Arc<HashMap<String, HashSet<T>>>,
     runners: Arc<VecDeque<Runner<T>>>,
 }
 
 impl<T> JsonDB<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
 {
     /// Creates a new instance of the `JsonDB` struct, initializing it with a new JSON database file.
     ///
@@ -74,7 +72,7 @@ where
         let db = Self {
             tables: HashSet::new(),
             path: file_path,
-            file: Arc::new(file),
+            _file: Arc::new(file),
             value: Arc::new(value),
             runners: Arc::new(VecDeque::new()),
         };

@@ -1,50 +1,8 @@
-use fake::{Fake, Faker};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_value::Value;
 use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, Result};
-
-/// Generates a vector of `T` instances with random data using the `fake` crate.
-///
-/// This function is useful for generating fake data for testing or prototyping purposes.
-///
-/// # Arguments
-///
-/// * `count` - The number of `T` instances to generate.
-///
-/// # Returns
-///
-/// A vector of `T` instances with randomly generated data.
-///
-/// # Example
-///
-///
-/// use src::utils::fake_it;
-/// use fake::Dummy;
-///
-/// #[derive(Dummy)]
-/// struct Person {
-///     name: String,
-///     age: u32,
-/// }
-///
-/// let people: Vec<Person> = fake_it(10);
-///
-pub fn fake_it<T>(count: u32) -> Vec<T>
-where
-    T: fake::Dummy<fake::Faker>,
-{
-    let mut list: Vec<T> = vec![];
-
-    for _ in 0..count {
-        let item = Faker.fake::<T>();
-
-        list.push(item);
-    }
-
-    list
-}
 
 /// Retrieves the value of a field by name from a serializable data structure.
 ///
