@@ -6,8 +6,10 @@ use fake::faker::internet::en::SafeEmail;
 use fake::faker::lorem::en::{Sentence, Words};
 use fake::faker::name::en::{FirstName, LastName};
 use fake::Dummy;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Dummy, Eq, Hash, Default)]
 pub enum Status {
@@ -149,15 +151,44 @@ pub enum Comparator {
     Between((u64, u64)),
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Dummy, Eq, Hash)]
+struct A {
+    id: String,
+}
+
+pub trait BorrowID {
+    type Output;
+    fn borrow_id(&self) -> &Self::Output;
+}
+
+macro_rules! impl_BorrowID {
+    ($out:ty, [$($t:ty),+]) => {
+        $(impl BorrowID for $t {
+            type Output = $out;
+            fn borrow_id(&self) -> &Self::Output {
+                &self.id
+            }
+        })*
+    }
+}
+
+impl_BorrowID! {String, [A]}
+
 #[derive(Clone, PartialEq, Debug)]
-pub enum MethodName {
-    Create(String, ToDo, bool),
+pub enum MethodName<T>
+where
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+{
+    Create(String, T, bool),
     Read(String),
-    Update(String, ToDo),
+    Update(String, T),
     Delete(String),
 }
 
-impl MethodName {
+impl<T> MethodName<T>
+where
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+{
     /// Prints a message to the console based on the variant of the `MethodName` enum.
     ///
     /// This method is used to provide visual feedback to the user when performing CRUD operations on a database table.
@@ -212,9 +243,12 @@ impl MethodName {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Runner {
+pub enum Runner<T>
+where
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+{
     Done,
-    Method(MethodName),
+    Method(MethodName<T>),
     Compare(Comparator),
     Where(String),
 }

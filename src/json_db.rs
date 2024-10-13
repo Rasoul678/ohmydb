@@ -1,10 +1,14 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 
 use crate::get_nested_value;
-use crate::types::{Comparator, MethodName, Runner, ToDo};
+use crate::types::{BorrowID, Comparator, MethodName, Runner};
 use colored::*;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
 use std::io::{self, ErrorKind};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,15 +16,21 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Clone)]
-pub struct JsonDB {
+pub struct JsonDB<T>
+where
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+{
     tables: HashSet<String>,
     path: PathBuf,
     file: Arc<File>,
-    value: Arc<HashMap<String, HashSet<ToDo>>>,
-    runners: Arc<VecDeque<Runner>>,
+    value: Arc<HashMap<String, HashSet<T>>>,
+    runners: Arc<VecDeque<Runner<T>>>,
 }
 
-impl JsonDB {
+impl<T> JsonDB<T>
+where
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+{
     /// Creates a new instance of the `JsonDB` struct, initializing it with a new JSON database file.
     ///
     /// This function reads the contents of the `db.json` file in the current directory,
@@ -31,7 +41,7 @@ impl JsonDB {
     ///
     /// A `Result` containing a new `JsonDB` instance if the operation is successful,
     /// or an `io::Error` if there is a problem reading or creating the file.
-    pub async fn new(db_name: &str) -> Result<JsonDB, io::Error> {
+    pub async fn new(db_name: &str) -> Result<Self, io::Error> {
         let db_path;
 
         if db_name.is_empty() {
@@ -61,7 +71,7 @@ impl JsonDB {
             serde_json::from_str(&content).map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?
         };
 
-        let db = JsonDB {
+        let db = Self {
             tables: HashSet::new(),
             path: file_path,
             file: Arc::new(file),
@@ -83,21 +93,18 @@ impl JsonDB {
             .collect::<Vec<String>>()
     }
 
-    pub fn get_db_values(&self) -> Vec<(String, Vec<ToDo>)> {
+    pub fn get_db_values(&self) -> Vec<(String, Vec<T>)> {
         Arc::clone(&self.value)
             .iter()
             .map(|table| {
                 let (t_name, t_records_hash) = table;
-                let t_records_vec = t_records_hash
-                    .iter()
-                    .map(Clone::clone)
-                    .collect::<Vec<ToDo>>();
+                let t_records_vec = t_records_hash.iter().map(Clone::clone).collect::<Vec<T>>();
                 (t_name.clone(), t_records_vec)
             })
-            .collect::<Vec<(String, Vec<ToDo>)>>()
+            .collect::<Vec<(String, Vec<T>)>>()
     }
 
-    /// Retrieves a mutable reference to the HashSet of `ToDo` items for the specified table in the JSON database.
+    /// Retrieves a mutable reference to the HashSet of `T` items for the specified table in the JSON database.
     ///
     /// # Arguments
     ///
@@ -105,9 +112,9 @@ impl JsonDB {
     ///
     /// # Returns
     ///
-    /// A `Result` containing a mutable reference to the `HashSet<ToDo>` for the specified table if it exists,
+    /// A `Result` containing a mutable reference to the `HashSet<T>` for the specified table if it exists,
     /// or an `io::Error` if the table is not found.
-    fn get_table_mut(&mut self, table_name: &str) -> Result<&mut HashSet<ToDo>, io::Error> {
+    fn get_table_mut(&mut self, table_name: &str) -> Result<&mut HashSet<T>, io::Error> {
         let table = Arc::make_mut(&mut self.value)
             .get_mut(table_name)
             .ok_or_else(|| {
@@ -129,7 +136,7 @@ impl JsonDB {
         Ok(table)
     }
 
-    /// Retrieves a vector of `ToDo` items from the specified table in the JSON database.
+    /// Retrieves a vector of `T` items from the specified table in the JSON database.
     ///
     /// # Arguments
     ///
@@ -137,8 +144,8 @@ impl JsonDB {
     ///
     /// # Returns
     ///
-    /// A `Result` containing a `Vec<ToDo>` if the table is found, or an `io::Error` if the table is not found.
-    fn get_table_vec(&mut self, table_name: &str) -> Result<Vec<ToDo>, io::Error> {
+    /// A `Result` containing a `Vec<T>` if the table is found, or an `io::Error` if the table is not found.
+    fn get_table_vec(&mut self, table_name: &str) -> Result<Vec<T>, io::Error> {
         let hash_table = (*self.value)
             .clone()
             .get(table_name)
@@ -203,12 +210,12 @@ impl JsonDB {
     /// # Arguments
     ///
     /// * `table` - The name of the table to insert the record into.
-    /// * `item` - The `ToDo` item to insert.
+    /// * `item` - The `T` item to insert.
     ///
     /// # Returns
     ///
     /// A mutable reference to the `JsonDb` instance, allowing for method chaining.
-    pub fn insert(&mut self, table: &str, item: ToDo) -> &mut Self {
+    pub fn insert(&mut self, table: &str, item: T) -> &mut Self {
         Arc::make_mut(&mut self.runners).push_back(Runner::Method(MethodName::Create(
             table.to_string(),
             item,
@@ -223,12 +230,12 @@ impl JsonDB {
     /// # Arguments
     ///
     /// * `table` - The name of the table to insert the record into.
-    /// * `item` - The `ToDo` item to insert or update.
+    /// * `item` - The `T` item to insert or update.
     ///
     /// # Returns
     ///
     /// A mutable reference to the `JsonDb` instance, allowing for method chaining.
-    pub fn insert_or(&mut self, table: &str, item: ToDo) -> &mut Self {
+    pub fn insert_or(&mut self, table: &str, item: T) -> &mut Self {
         Arc::make_mut(&mut self.runners).push_back(Runner::Method(MethodName::Create(
             table.to_string(),
             item,
@@ -256,7 +263,7 @@ impl JsonDB {
     /// # Returns
     ///
     /// A new `Self` instance with the updated runners queue.
-    pub fn update(&mut self, table: &str, data: ToDo) -> &mut Self {
+    pub fn update(&mut self, table: &str, data: T) -> &mut Self {
         Arc::make_mut(&mut self.runners)
             .push_back(Runner::Method(MethodName::Update(table.to_string(), data)));
 
@@ -400,7 +407,7 @@ impl JsonDB {
     /// Runs the database operations specified in the runners queue.
     ///
     /// This method processes the runners queue, performing various database operations such as creating, reading, updating, and deleting records.
-    /// The method returns the resulting list of `ToDo` items after applying the specified operations.
+    /// The method returns the resulting list of `T` items after applying the specified operations.
     ///
     /// # Errors
     ///
@@ -408,11 +415,11 @@ impl JsonDB {
     ///
     /// # Returns
     ///
-    /// A `Result` containing a `Vec` of `ToDo` items representing the final state of the database after the operations have been performed.
-    pub async fn run(&mut self) -> Result<Vec<ToDo>, std::io::Error> {
+    /// A `Result` containing a `Vec` of `T` items representing the final state of the database after the operations have been performed.
+    pub async fn run(&mut self) -> Result<Vec<T>, std::io::Error> {
         let mut result = Vec::new();
         let mut key_chain = String::new();
-        let mut method: Option<MethodName> = None;
+        let mut method: Option<MethodName<T>> = None;
 
         Arc::make_mut(&mut self.runners).push_back(Runner::Done);
 
@@ -442,8 +449,8 @@ impl JsonDB {
                 Runner::Compare(ref comparator) => {
                     result = result
                         .into_iter()
-                        .filter(|todo| {
-                            let value: Value = get_nested_value(todo, &key_chain).unwrap();
+                        .filter(|t| {
+                            let value = get_nested_value(t, &key_chain).unwrap();
                             self.filter_with_conmpare(value, comparator)
                         })
                         .collect();
@@ -451,31 +458,43 @@ impl JsonDB {
                 Runner::Done => {
                     match method {
                         Some(MethodName::Read(table)) => {
-                            MethodName::Read(table).notify();
+                            MethodName::Read::<T>(table).notify();
                         }
                         Some(MethodName::Create(table, ref new_item, or)) => {
                             self.insert_into_table(table.as_str(), &new_item, or)?;
                             MethodName::Create(table, new_item.clone(), or).notify();
                         }
                         Some(MethodName::Update(table, new_item)) => {
-                            let search_result =
-                                result
-                                    .iter()
-                                    .find(|t| t.id == new_item.id)
-                                    .ok_or(io::Error::new(
-                                        ErrorKind::NotFound,
-                                        format!(
-                                            "Schade! Record with id \"{}\" not found in table {}",
-                                            new_item.id,
-                                            table.bright_cyan().bold()
-                                        ),
-                                    ));
+                            let new_item_id: Value =
+                                get_nested_value(new_item.clone(), "id").unwrap();
+                            let search_result = result
+                                .iter()
+                                .find(|t| {
+                                    let current_item_id: Value = get_nested_value(t, "id").unwrap();
+                                    current_item_id.as_str().unwrap()
+                                        == new_item_id.as_str().unwrap()
+                                })
+                                .ok_or(io::Error::new(
+                                    ErrorKind::NotFound,
+                                    format!(
+                                        "Schade! Record with id \"{}\" not found in table {}",
+                                        new_item_id.as_str().unwrap(),
+                                        table.bright_cyan().bold()
+                                    ),
+                                ));
 
                             match search_result {
-                                Ok(old_todo) => {
+                                Ok(search_value) => {
                                     let table_hash = self.get_table_mut(&table)?;
+                                    let search_value_id: Value =
+                                        get_nested_value(search_value, "id").unwrap();
 
-                                    table_hash.retain(|t| t.id != old_todo.id);
+                                    table_hash.retain(|t| {
+                                        let current_id: Value = get_nested_value(t, "id").unwrap();
+                                        current_id.as_str().unwrap()
+                                            != search_value_id.as_str().unwrap()
+                                    });
+
                                     table_hash.insert(new_item.clone());
 
                                     result.clear();
@@ -500,11 +519,15 @@ impl JsonDB {
                         Some(MethodName::Delete(table)) => {
                             let table_hash = self.get_table_mut(&table)?;
 
-                            for t in result.iter() {
-                                table_hash.retain(|todo| todo.id != t.id);
+                            for r in result.iter() {
+                                table_hash.retain(|t| {
+                                    let t_id: Value = get_nested_value(t, "id").unwrap();
+                                    let r_id: Value = get_nested_value(r, "id").unwrap();
+                                    t_id.as_str().unwrap() != r_id.as_str().unwrap()
+                                });
                             }
 
-                            MethodName::Delete(table).notify();
+                            MethodName::Delete::<T>(table).notify();
                         }
                         _ => {}
                     }
@@ -563,13 +586,15 @@ impl JsonDB {
     ///
     /// # Returns
     ///
-    /// * `Result<&'a ToDo, io::Error>` - A result containing either a reference to the inserted item or an error if the item already exists.
+    /// * `Result<&'a T, io::Error>` - A result containing either a reference to the inserted item or an error if the item already exists.
     fn insert_into_table<'a>(
         &mut self,
         table_name: &str,
-        new_item: &'a ToDo,
+        new_item: &'a T,
         or: bool,
-    ) -> Result<&'a ToDo, io::Error> {
+    ) -> Result<&'a T, io::Error> {
+        let new_item_id: Value = get_nested_value(new_item, "id").unwrap();
+
         let table = if or {
             let db_hash = Arc::make_mut(&mut self.value);
 
@@ -591,7 +616,7 @@ impl JsonDB {
                 "{} {}{}{} {}\n\t\t    {} {}\n",
                 "(insert_into_table)".bright_cyan().bold(),
                 "✗ Schade! Record with id \"".bright_red().bold(),
-                new_item.id.bright_red().bold(),
+                new_item_id.as_str().unwrap().bright_red().bold(),
                 "\" already exists in table".bright_red().bold(),
                 table_name.to_string().bright_cyan().bold(),
                 "✔".bright_green().bold().blink(),
@@ -604,13 +629,22 @@ impl JsonDB {
         }
 
         // Check for double entries with same id
-        let search_table = table.iter().find(|t| t.id == new_item.id);
+        let search_table = table.iter().find(|t| {
+            let current_id: Value = get_nested_value(t, "id").unwrap();
+
+            current_id.as_str().unwrap() == new_item_id.as_str().unwrap()
+        });
 
         match search_table {
             Some(t) => {
+                let t_id: Value = get_nested_value(t, "id").unwrap();
+
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
-                    format!("Record with id \"{}\" already exists", t.id),
+                    format!(
+                        "Record with id \"{}\" already exists",
+                        t_id.as_str().unwrap()
+                    ),
                 ));
             }
             None => {
