@@ -151,33 +151,10 @@ pub enum Comparator {
     Between((u64, u64)),
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Dummy, Eq, Hash)]
-struct A {
-    id: String,
-}
-
-pub trait BorrowID {
-    type Output;
-    fn borrow_id(&self) -> &Self::Output;
-}
-
-macro_rules! impl_BorrowID {
-    ($out:ty, [$($t:ty),+]) => {
-        $(impl BorrowID for $t {
-            type Output = $out;
-            fn borrow_id(&self) -> &Self::Output {
-                &self.id
-            }
-        })*
-    }
-}
-
-impl_BorrowID! {String, [A]}
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum MethodName<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
 {
     Create(String, T, bool),
     Read(String),
@@ -187,7 +164,7 @@ where
 
 impl<T> MethodName<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
 {
     /// Prints a message to the console based on the variant of the `MethodName` enum.
     ///
@@ -245,7 +222,7 @@ where
 #[derive(Clone, PartialEq, Debug)]
 pub enum Runner<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
 {
     Done,
     Method(MethodName<T>),

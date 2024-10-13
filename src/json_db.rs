@@ -1,7 +1,7 @@
 // #![allow(dead_code)]
 
 use crate::get_nested_value;
-use crate::types::{BorrowID, Comparator, MethodName, Runner};
+use crate::types::{Comparator, MethodName, Runner};
 use colored::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -18,7 +18,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[derive(Clone)]
 pub struct JsonDB<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
 {
     tables: HashSet<String>,
     path: PathBuf,
@@ -29,7 +29,7 @@ where
 
 impl<T> JsonDB<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash + BorrowID,
+    T: Serialize + DeserializeOwned + Clone + Display + Debug + PartialEq + Eq + Hash,
 {
     /// Creates a new instance of the `JsonDB` struct, initializing it with a new JSON database file.
     ///
