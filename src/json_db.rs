@@ -84,11 +84,24 @@ where
         self.path.as_os_str().to_str().unwrap_or_default()
     }
 
-    pub fn get_db_tables(&self) -> Vec<String> {
-        self.tables
-            .iter()
-            .map(Clone::clone)
-            .collect::<Vec<String>>()
+    pub async fn get_db_tables(&self) -> Vec<String> {
+        let mut content = String::new();
+
+        let file = OpenOptions::new().read(true).open(&self.path).await.ok();
+
+        let tables = if file.is_some() {
+            file.unwrap().read_to_string(&mut content).await.unwrap();
+
+            let tables_hash: HashMap<String, HashSet<T>> = serde_json::from_str(&content)
+                .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))
+                .unwrap();
+
+            tables_hash.into_keys().collect::<Vec<String>>()
+        } else {
+            vec![]
+        };
+
+        tables
     }
 
     pub fn get_db_values(&self) -> Vec<(String, Vec<T>)> {
@@ -170,10 +183,12 @@ where
     ///
     /// A `Result` indicating whether the table was successfully added. If the table already exists, this function will return `Ok(())`.
     pub async fn add_table(&mut self, table_name: &str) -> Result<(), io::Error> {
-        let value = Arc::make_mut(&mut self.value);
+        let tables_hash = Arc::make_mut(&mut self.value);
 
-        if !value.contains_key(table_name) {
-            value.insert(table_name.to_string(), HashSet::new());
+        let table_already_exists = tables_hash.contains_key(table_name);
+
+        if !table_already_exists {
+            tables_hash.insert(table_name.to_string(), HashSet::new());
             self.tables.insert(table_name.to_string());
         }
 
