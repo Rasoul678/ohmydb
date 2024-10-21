@@ -1,6 +1,6 @@
 [package]
 name = "ohmydb"
-version = "1.2.4"
+version = "1.2.5"
 edition = "2021"
 description = "A light-weight local json database"
 license = "MIT OR Apache-2.0"

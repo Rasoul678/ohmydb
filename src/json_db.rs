@@ -94,7 +94,7 @@ where
 
             let tables_hash: HashMap<String, HashSet<T>> = serde_json::from_str(&content)
                 .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))
-                .unwrap();
+                .unwrap_or_default();
 
             tables_hash.into_keys().collect::<Vec<String>>()
         } else {
