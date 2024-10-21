@@ -156,7 +156,7 @@ where
     /// # Returns
     ///
     /// A `Result` containing a `Vec<T>` if the table is found, or an `io::Error` if the table is not found.
-    fn get_table_vec(&mut self, table_name: &str) -> Result<Vec<T>, io::Error> {
+    pub fn get_table_vec(&mut self, table_name: &str) -> Result<Vec<T>, io::Error> {
         let hash_table = (*self.value)
             .clone()
             .get(table_name)
