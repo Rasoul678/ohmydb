@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::io::{self, ErrorKind};
 use std::path::PathBuf;
@@ -16,7 +16,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[derive(Clone)]
 pub struct JsonDB<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
 {
     tables: HashSet<String>,
     path: PathBuf,
@@ -27,7 +27,7 @@ where
 
 impl<T> JsonDB<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
 {
     /// Creates a new instance of the `JsonDB` struct, initializing it with a new JSON database file.
     ///
@@ -228,10 +228,10 @@ where
     /// # Returns
     ///
     /// A mutable reference to the `JsonDb` instance, allowing for method chaining.
-    pub fn insert(&mut self, table: &str, item: T) -> &mut Self {
+    pub fn insert(&mut self, table: &str, item: &T) -> &mut Self {
         Arc::make_mut(&mut self.runners).push_back(Runner::Method(MethodName::Create(
             table.to_string(),
-            item,
+            item.clone(),
             false,
         )));
         self
@@ -248,10 +248,10 @@ where
     /// # Returns
     ///
     /// A mutable reference to the `JsonDb` instance, allowing for method chaining.
-    pub fn insert_or(&mut self, table: &str, item: T) -> &mut Self {
+    pub fn insert_or(&mut self, table: &str, item: &T) -> &mut Self {
         Arc::make_mut(&mut self.runners).push_back(Runner::Method(MethodName::Create(
             table.to_string(),
-            item,
+            item.clone(),
             true,
         )));
         self

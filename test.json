@@ -1,4 +1,22 @@
 {
-  "users": [],
-  "files": []
+  "files": [
+    {
+      "id": "1",
+      "assignee": "John Doe",
+      "title": "Buy groceries",
+      "is_completed": false,
+      "created_at": "2023-06-01",
+      "updated_at": "2023-06-01"
+    }
+  ],
+  "users": [
+    {
+      "id": "1",
+      "assignee": "John Doe",
+      "title": "Buy groceries",
+      "is_completed": false,
+      "created_at": "2023-06-01",
+      "updated_at": "2023-06-01"
+    }
+  ]
 }

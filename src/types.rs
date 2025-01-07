@@ -4,7 +4,7 @@ use colored::customcolors::CustomColor;
 use colored::Colorize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -20,7 +20,7 @@ pub enum Comparator {
 #[derive(Clone, PartialEq, Debug)]
 pub enum MethodName<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
 {
     Create(String, T, bool),
     Read(String),
@@ -30,7 +30,7 @@ where
 
 impl<T> MethodName<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash+ Display,
 {
     /// Prints a message to the console based on the variant of the `MethodName` enum.
     ///
@@ -56,7 +56,7 @@ where
 
         match self {
             MethodName::Create(table, item, _) => println!(
-                "{lead} {} {trail}\n\n {:#?} \n",
+                "{lead} {} {trail}\n\n {} \n",
                 table.custom_color(gold).bold(),
                 item,
                 lead = "🌱 Creating a new record in".custom_color(green).bold(),
@@ -69,7 +69,7 @@ where
                 trail = "table...".custom_color(teal).bold()
             ),
             MethodName::Update(table, item) => println!(
-                "{lead} {} {trail}\n\n {:#?} \n",
+                "{lead} {} {trail}\n\n {} \n",
                 table.custom_color(gold).bold(),
                 item,
                 lead = "⛁ Updating a record in".custom_color(yellow).bold(),
@@ -88,7 +88,7 @@ where
 #[derive(Clone, PartialEq, Debug)]
 pub enum Runner<T>
 where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash,
+    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
 {
     Done,
     Method(MethodName<T>),
