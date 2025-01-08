@@ -1,7 +1,7 @@
 mod json_db;
+mod macros;
 mod types;
 mod utils;
-mod macros;
 
 pub use colored;
 pub use json_db::*;

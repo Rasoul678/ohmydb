@@ -1,12 +1,9 @@
 use crate::get_nested_value;
 use crate::types::{Comparator, MethodName, Runner};
 use colored::*;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
 use std::io::{self, ErrorKind};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,21 +11,15 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Clone)]
-pub struct JsonDB<T>
-where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
-{
+pub struct JsonDB {
     tables: HashSet<String>,
     path: PathBuf,
     _file: Arc<File>,
-    value: Arc<HashMap<String, HashSet<T>>>,
-    runners: Arc<VecDeque<Runner<T>>>,
+    value: Arc<HashMap<String, HashSet<Value>>>,
+    runners: Arc<VecDeque<Runner>>,
 }
 
-impl<T> JsonDB<T>
-where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
-{
+impl JsonDB {
     /// Creates a new instance of the `JsonDB` struct, initializing it with a new JSON database file.
     ///
     /// This function reads the contents of the `db.json` file in the current directory,
@@ -92,7 +83,7 @@ where
         let tables = if file.is_some() {
             file.unwrap().read_to_string(&mut content).await.unwrap();
 
-            let tables_hash: HashMap<String, HashSet<T>> = serde_json::from_str(&content)
+            let tables_hash: HashMap<String, HashSet<Value>> = serde_json::from_str(&content)
                 .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))
                 .unwrap_or_default();
 
@@ -104,15 +95,18 @@ where
         tables
     }
 
-    pub fn get_db_values(&self) -> Vec<(String, Vec<T>)> {
+    pub fn get_db_values(&self) -> Vec<(String, Vec<Value>)> {
         Arc::clone(&self.value)
             .iter()
             .map(|table| {
                 let (t_name, t_records_hash) = table;
-                let t_records_vec = t_records_hash.iter().map(Clone::clone).collect::<Vec<T>>();
+                let t_records_vec = t_records_hash
+                    .iter()
+                    .map(Clone::clone)
+                    .collect::<Vec<Value>>();
                 (t_name.clone(), t_records_vec)
             })
-            .collect::<Vec<(String, Vec<T>)>>()
+            .collect::<Vec<(String, Vec<Value>)>>()
     }
 
     /// Retrieves a mutable reference to the HashSet of `T` items for the specified table in the JSON database.
@@ -125,7 +119,7 @@ where
     ///
     /// A `Result` containing a mutable reference to the `HashSet<T>` for the specified table if it exists,
     /// or an `io::Error` if the table is not found.
-    fn get_table_mut(&mut self, table_name: &str) -> Result<&mut HashSet<T>, io::Error> {
+    fn get_table_mut(&mut self, table_name: &str) -> Result<&mut HashSet<Value>, io::Error> {
         let table = Arc::make_mut(&mut self.value)
             .get_mut(table_name)
             .ok_or_else(|| {
@@ -156,7 +150,7 @@ where
     /// # Returns
     ///
     /// A `Result` containing a `Vec<T>` if the table is found, or an `io::Error` if the table is not found.
-    pub fn get_table_vec(&mut self, table_name: &str) -> Result<Vec<T>, io::Error> {
+    pub fn get_table_vec(&mut self, table_name: &str) -> Result<Vec<Value>, io::Error> {
         let hash_table = (*self.value)
             .clone()
             .get(table_name)
@@ -228,10 +222,14 @@ where
     /// # Returns
     ///
     /// A mutable reference to the `JsonDb` instance, allowing for method chaining.
-    pub fn insert(&mut self, table: &str, item: &T) -> &mut Self {
+    pub fn insert<T>(&mut self, table: &str, item: &T) -> &mut Self
+    where
+        T: Serialize,
+    {
+        let value = serde_json::to_value(item).unwrap();
         Arc::make_mut(&mut self.runners).push_back(Runner::Method(MethodName::Create(
             table.to_string(),
-            item.clone(),
+            value,
             false,
         )));
         self
@@ -248,10 +246,14 @@ where
     /// # Returns
     ///
     /// A mutable reference to the `JsonDb` instance, allowing for method chaining.
-    pub fn insert_or(&mut self, table: &str, item: &T) -> &mut Self {
+    pub fn insert_or<T>(&mut self, table: &str, item: &T) -> &mut Self
+    where
+        T: Serialize,
+    {
+        let value = serde_json::to_value(item).unwrap();
         Arc::make_mut(&mut self.runners).push_back(Runner::Method(MethodName::Create(
             table.to_string(),
-            item.clone(),
+            value,
             true,
         )));
         self
@@ -276,9 +278,13 @@ where
     /// # Returns
     ///
     /// A new `Self` instance with the updated runners queue.
-    pub fn update(&mut self, table: &str, data: T) -> &mut Self {
+    pub fn update<T>(&mut self, table: &str, item: &T) -> &mut Self
+    where
+        T: Serialize,
+    {
+        let value = serde_json::to_value(item).unwrap();
         Arc::make_mut(&mut self.runners)
-            .push_back(Runner::Method(MethodName::Update(table.to_string(), data)));
+            .push_back(Runner::Method(MethodName::Update(table.to_string(), value)));
 
         self
     }
@@ -429,10 +435,10 @@ where
     /// # Returns
     ///
     /// A `Result` containing a `Vec` of `T` items representing the final state of the database after the operations have been performed.
-    pub async fn run(&mut self) -> Result<Vec<T>, std::io::Error> {
+    pub async fn run(&mut self) -> Result<Vec<Value>, std::io::Error> {
         let mut result = Vec::new();
         let mut key_chain = String::new();
-        let mut method: Option<MethodName<T>> = None;
+        let mut method: Option<MethodName> = None;
 
         Arc::make_mut(&mut self.runners).push_back(Runner::Done);
 
@@ -471,7 +477,7 @@ where
                 Runner::Done => {
                     match method {
                         Some(MethodName::Read(table)) => {
-                            MethodName::Read::<T>(table).notify();
+                            MethodName::Read(table).notify();
                         }
                         Some(MethodName::Create(table, ref new_item, or)) => {
                             self.insert_into_table(table.as_str(), &new_item, or)?;
@@ -540,7 +546,7 @@ where
                                 });
                             }
 
-                            MethodName::Delete::<T>(table).notify();
+                            MethodName::Delete(table).notify();
                         }
                         _ => {}
                     }
@@ -603,9 +609,9 @@ where
     fn insert_into_table<'a>(
         &mut self,
         table_name: &str,
-        new_item: &'a T,
+        new_item: &'a Value,
         or: bool,
-    ) -> Result<&'a T, io::Error> {
+    ) -> Result<&'a Value, io::Error> {
         let new_item_id: Value = get_nested_value(new_item, "id").unwrap();
 
         let table = if or {

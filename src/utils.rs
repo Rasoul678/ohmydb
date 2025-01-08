@@ -1,5 +1,7 @@
+use colored::Colorize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_json::{Map, Value as JSonValue};
 use serde_value::Value;
 use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, Result};
@@ -121,4 +123,100 @@ where
         Ok(r) => Ok(r),
         Err(e) => Err(Error::new(ErrorKind::InvalidData, e.to_string())),
     }
+}
+
+fn colorize_value(value: &JSonValue) -> String {
+    match value {
+        JSonValue::Null => "null".dimmed().to_string(),
+        JSonValue::Bool(b) => b.to_string().yellow().to_string(),
+        JSonValue::Number(n) => n.to_string().bright_cyan().to_string(),
+        JSonValue::String(s) => format!("\"{}\"", s).bright_cyan().to_string(),
+        JSonValue::Array(arr) => {
+            let colored_elements: Vec<String> = arr.iter().map(colorize_value).collect();
+            format!("[{}]", colored_elements.join(", "))
+        }
+        JSonValue::Object(obj) => {
+            let colored_pairs: Vec<String> = obj
+                .iter()
+                .map(|(k, v)| format!("\"{}\": {}", k.green(), colorize_value(v)))
+                .collect();
+            format!("{{{}}}", colored_pairs.join(", "))
+        }
+    }
+}
+
+fn display_array(arr: &Vec<JSonValue>, indent: usize) -> String {
+    let mut result = String::new();
+    let indent_str = " ".repeat(indent);
+
+    result.push_str("[\n");
+
+    for value in arr {
+        // Add indentation
+        result.push_str(&indent_str);
+
+        // Recursively format the value
+        match value {
+            JSonValue::Object(obj) => {
+                result.push_str(&display_object(obj, indent + 2));
+            }
+            JSonValue::Array(nested_arr) => {
+                result.push_str(&display_array(nested_arr, indent + 2));
+            }
+            _ => {
+                result.push_str(&colorize_value(value));
+            }
+        }
+
+        result.push_str(",\n");
+    }
+
+    // Remove the trailing comma and newline
+    if !arr.is_empty() {
+        result.pop(); // Remove '\n'
+        result.pop(); // Remove ','
+    }
+
+    result.push_str(&format!("\n{}]", indent_str));
+    result
+}
+
+pub fn display_object(obj: &Map<String, JSonValue>, indent: usize) -> String {
+    let mut result = String::new();
+    let indent_str = " ".repeat(indent);
+
+    result.push_str("{\n");
+
+    for (key, value) in obj {
+        // Add indentation and colorize the key
+        result.push_str(&format!(
+            "{}{}: ",
+            " ".repeat(indent + 2),
+            key.bright_yellow().bold()
+        ));
+
+        // Recursively format the value
+        match value {
+            JSonValue::Object(nested_obj) => {
+                result.push_str(&display_object(nested_obj, indent + 2));
+            }
+            JSonValue::Array(arr) => {
+                result.push_str(&display_array(arr, indent + 2));
+            }
+            _ => {
+                result.push_str(&colorize_value(value));
+            }
+        }
+
+        result.push_str(",\n");
+    }
+
+    // Remove the trailing comma and newline
+    if !obj.is_empty() {
+        result.pop(); // Remove '\n'
+        result.pop(); // Remove ','
+    }
+
+    result.push_str(&format!("\n{}}}", indent_str));
+    result
 }

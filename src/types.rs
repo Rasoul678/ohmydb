@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
+use crate::utils::display_object;
 use colored::customcolors::CustomColor;
 use colored::Colorize;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::fmt::{Debug, Display};
-use std::hash::Hash;
+use serde_json::Value;
+use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Comparator {
@@ -18,20 +17,14 @@ pub enum Comparator {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum MethodName<T>
-where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
-{
-    Create(String, T, bool),
+pub enum MethodName {
+    Create(String, Value, bool),
     Read(String),
-    Update(String, T),
+    Update(String, Value),
     Delete(String),
 }
 
-impl<T> MethodName<T>
-where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash+ Display,
-{
+impl MethodName {
     /// Prints a message to the console based on the variant of the `MethodName` enum.
     ///
     /// This method is used to provide visual feedback to the user when performing CRUD operations on a database table.
@@ -55,26 +48,38 @@ where
         let red = CustomColor::new(217, 33, 33);
 
         match self {
-            MethodName::Create(table, item, _) => println!(
-                "{lead} {} {trail}\n\n {} \n",
-                table.custom_color(gold).bold(),
-                item,
-                lead = "🌱 Creating a new record in".custom_color(green).bold(),
-                trail = "table...".custom_color(green).bold()
-            ),
+            MethodName::Create(table, item, _) => {
+                if let Value::Object(obj) = item {
+                    println!(
+                        "{lead} {} {trail}\n\n {} \n",
+                        table.custom_color(gold).bold(),
+                        display_object(obj, 1),
+                        lead = "🌱 Creating a new record in".custom_color(green).bold(),
+                        trail = "table...".custom_color(green).bold()
+                    )
+                } else {
+                    println!("Not a JSON object");
+                }
+            }
             MethodName::Read(table) => println!(
                 "{lead} {} {trail}\n",
                 table.custom_color(gold).bold(),
                 lead = "🔎 Querying".custom_color(teal).bold(),
                 trail = "table...".custom_color(teal).bold()
             ),
-            MethodName::Update(table, item) => println!(
-                "{lead} {} {trail}\n\n {} \n",
-                table.custom_color(gold).bold(),
-                item,
-                lead = "⛁ Updating a record in".custom_color(yellow).bold(),
-                trail = "table...".custom_color(yellow).bold()
-            ),
+            MethodName::Update(table, item) => {
+                if let Value::Object(obj) = item {
+                    println!(
+                        "{lead} {} {trail}\n\n {} \n",
+                        table.custom_color(gold).bold(),
+                        display_object(obj, 1),
+                        lead = "⛁ Updating a record in".custom_color(yellow).bold(),
+                        trail = "table...".custom_color(yellow).bold()
+                    )
+                } else {
+                    println!("Not a JSON object");
+                }
+            }
             MethodName::Delete(table) => println!(
                 "{lead} {} {trail}\n",
                 table.custom_color(gold).bold(),
@@ -86,12 +91,27 @@ where
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Runner<T>
-where
-    T: Serialize + DeserializeOwned + Clone + Debug + PartialEq + Eq + Hash + Display,
-{
+pub enum Runner {
     Done,
-    Method(MethodName<T>),
+    Method(MethodName),
     Compare(Comparator),
     Where(String),
+}
+
+struct MyType {
+    name: String,
+    age: u32,
+}
+
+impl From<Value> for MyType {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Object(map) => {
+                let name = map.get("name").unwrap().as_str().unwrap().to_string();
+                let age = map.get("age").unwrap().as_u64().unwrap() as u32;
+                MyType { name, age }
+            }
+            _ => panic!("Invalid value"),
+        }
+    }
 }
