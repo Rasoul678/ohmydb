@@ -1,4 +1,5 @@
 {
+  "todos": [],
   "users": [
     {
       "created_at": "2025-01-07",
@@ -7,6 +8,5 @@
       "occupation": "Frontend Developer",
       "updated_at": "2025-01-07"
     }
-  ],
-  "todos": []
+  ]
 }

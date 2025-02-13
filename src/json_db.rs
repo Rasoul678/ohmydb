@@ -1,7 +1,7 @@
-use crate::get_nested_value;
-use crate::types::Comparator::{self, Between, Equals, GreaterThan, In, LessThan, NotEquals};
-use crate::types::MethodName::{self, Create, Delete, Read, Update};
-use crate::types::Runner::{self, Compare, Done, Method, Where};
+use super::types::Comparator::{self, Between, Equals, GreaterThan, In, LessThan, NotEquals};
+use super::types::MethodName::{self, Create, Delete, Read, Update};
+use super::types::Runner::{self, Compare, Done, Method, Where};
+use super::utils::{get_nested_value, print_insert_error, print_update_error};
 use colored::*;
 use serde::Serialize;
 use serde_json::Value;
@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::ErrorKind::{AlreadyExists, InvalidData, NotFound};
 use std::io::{Error, Result};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::rc::Rc;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -17,9 +17,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 pub struct JsonDB {
     tables: HashSet<String>,
     path: PathBuf,
-    _file: Arc<File>,
-    value: Arc<HashMap<String, HashSet<Value>>>,
-    runners: Arc<VecDeque<Runner>>,
+    _file: Rc<File>,
+    value: Rc<HashMap<String, HashSet<Value>>>,
+    runners: Rc<VecDeque<Runner>>,
 }
 
 impl JsonDB {
@@ -66,9 +66,9 @@ impl JsonDB {
         let db = Self {
             tables: HashSet::new(),
             path: file_path,
-            _file: Arc::new(file),
-            value: Arc::new(value),
-            runners: Arc::new(VecDeque::new()),
+            _file: Rc::new(file),
+            value: Rc::new(value),
+            runners: Rc::new(VecDeque::new()),
         };
 
         Ok(db)
@@ -99,7 +99,7 @@ impl JsonDB {
     }
 
     pub fn get_db_values(&self) -> Vec<(String, Vec<Value>)> {
-        Arc::clone(&self.value)
+        Rc::clone(&self.value)
             .iter()
             .map(|table| {
                 let (t_name, t_records_hash) = table;
@@ -123,7 +123,7 @@ impl JsonDB {
     /// A `Result` containing a mutable reference to the `HashSet<T>` for the specified table if it exists,
     /// or an `io::Error` if the table is not found.
     fn get_table_mut(&mut self, table_name: &str) -> Result<&mut HashSet<Value>> {
-        let table = Arc::make_mut(&mut self.value)
+        let table = Rc::make_mut(&mut self.value)
             .get_mut(table_name)
             .ok_or_else(|| {
                 println!(
@@ -172,7 +172,7 @@ impl JsonDB {
     ///
     /// A `Result` indicating whether the table was successfully added. If the table already exists, this function will return `Ok(())`.
     pub async fn add_table(&mut self, table_name: &str) -> Result<()> {
-        let tables_hash = Arc::make_mut(&mut self.value);
+        let tables_hash = Rc::make_mut(&mut self.value);
 
         let table_already_exists = tables_hash.contains_key(table_name);
 
@@ -222,7 +222,7 @@ impl JsonDB {
         T: Serialize,
     {
         let value = serde_json::to_value(item).unwrap();
-        Arc::make_mut(&mut self.runners).push_back(Method(Create(table.to_string(), value, false)));
+        Rc::make_mut(&mut self.runners).push_back(Method(Create(table.to_string(), value, false)));
         self
     }
 
@@ -242,7 +242,7 @@ impl JsonDB {
         T: Serialize,
     {
         let value = serde_json::to_value(item).unwrap();
-        Arc::make_mut(&mut self.runners).push_back(Method(Create(table.to_string(), value, true)));
+        Rc::make_mut(&mut self.runners).push_back(Method(Create(table.to_string(), value, true)));
         self
     }
 
@@ -253,7 +253,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn find(&mut self, table: &str) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Method(Read(table.to_string())));
+        Rc::make_mut(&mut self.runners).push_back(Method(Read(table.to_string())));
 
         self
     }
@@ -269,7 +269,7 @@ impl JsonDB {
         T: Serialize,
     {
         let value = serde_json::to_value(item).unwrap();
-        Arc::make_mut(&mut self.runners).push_back(Method(Update(table.to_string(), value)));
+        Rc::make_mut(&mut self.runners).push_back(Method(Update(table.to_string(), value)));
 
         self
     }
@@ -286,7 +286,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn delete(&mut self, table: &str) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Method(Delete(table.to_string())));
+        Rc::make_mut(&mut self.runners).push_back(Method(Delete(table.to_string())));
 
         self
     }
@@ -302,7 +302,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn where_(&mut self, field: &str) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Where(field.to_string()));
+        Rc::make_mut(&mut self.runners).push_back(Where(field.to_string()));
 
         self
     }
@@ -318,7 +318,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn equals(&mut self, value: &str) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Compare(Equals(value.to_string())));
+        Rc::make_mut(&mut self.runners).push_back(Compare(Equals(value.to_string())));
 
         self
     }
@@ -334,7 +334,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn not_equals(&mut self, value: &str) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Compare(NotEquals(value.to_string())));
+        Rc::make_mut(&mut self.runners).push_back(Compare(NotEquals(value.to_string())));
 
         self
     }
@@ -350,7 +350,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn in_(&mut self, values: Vec<String>) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Compare(In(values)));
+        Rc::make_mut(&mut self.runners).push_back(Compare(In(values)));
 
         self
     }
@@ -366,7 +366,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn less_than(&mut self, value: u64) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Compare(LessThan(value)));
+        Rc::make_mut(&mut self.runners).push_back(Compare(LessThan(value)));
 
         self
     }
@@ -382,7 +382,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn greater_than(&mut self, value: u64) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Compare(GreaterThan(value)));
+        Rc::make_mut(&mut self.runners).push_back(Compare(GreaterThan(value)));
 
         self
     }
@@ -399,7 +399,7 @@ impl JsonDB {
     ///
     /// A new `Self` instance with the updated runners queue.
     pub fn between(&mut self, start: u64, end: u64) -> &mut Self {
-        Arc::make_mut(&mut self.runners).push_back(Compare(Between((start, end))));
+        Rc::make_mut(&mut self.runners).push_back(Compare(Between((start, end))));
 
         self
     }
@@ -421,9 +421,9 @@ impl JsonDB {
         let mut key_chain = String::new();
         let mut method: Option<MethodName> = None;
 
-        Arc::make_mut(&mut self.runners).push_back(Done);
+        Rc::make_mut(&mut self.runners).push_back(Done);
 
-        while let Some(runner) = Arc::make_mut(&mut self.runners).pop_front() {
+        while let Some(runner) = Rc::make_mut(&mut self.runners).pop_front() {
             match runner {
                 Method(name) => match name {
                     Create(table, new_item, or) => {
@@ -504,14 +504,7 @@ impl JsonDB {
                                 }
 
                                 Err(err) => {
-                                    println!(
-                                        "{}  {} {}\n\t\t{} {}\n",
-                                        "(update_table)".bright_cyan().bold(),
-                                        "✗".bright_red().bold(),
-                                        err.to_string().bright_red().bold(),
-                                        "✔".bright_green().bold().blink(),
-                                        "Consider adding new record".bright_green().bold()
-                                    );
+                                    print_update_error(&err);
                                     return Err(err);
                                 }
                             };
@@ -594,7 +587,7 @@ impl JsonDB {
         let new_item_id: Value = get_nested_value(new_item, "id").unwrap();
 
         let table = if or {
-            let db_hash = Arc::make_mut(&mut self.value);
+            let db_hash = Rc::make_mut(&mut self.value);
 
             match db_hash.get_mut(table_name) {
                 Some(t) => t,
@@ -610,16 +603,7 @@ impl JsonDB {
 
         // Check if the new item already exists in the set for exact same properties
         if table.contains(new_item) {
-            println!(
-                "{} {}{}{} {}\n\t\t    {} {}\n",
-                "(insert_into_table)".bright_cyan().bold(),
-                "✗ Schade! Record with id \"".bright_red().bold(),
-                new_item_id.as_str().unwrap().bright_red().bold(),
-                "\" already exists in table".bright_red().bold(),
-                table_name.to_string().bright_cyan().bold(),
-                "✔".bright_green().bold().blink(),
-                "Try to add new record".bright_green().bold()
-            );
+            print_insert_error(new_item_id, table_name);
             return Err(Error::new(AlreadyExists, "Record already exists"));
         }
 

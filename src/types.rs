@@ -97,21 +97,3 @@ pub enum Runner {
     Compare(Comparator),
     Where(String),
 }
-
-struct MyType {
-    name: String,
-    age: u32,
-}
-
-impl From<Value> for MyType {
-    fn from(value: Value) -> Self {
-        match value {
-            Value::Object(map) => {
-                let name = map.get("name").unwrap().as_str().unwrap().to_string();
-                let age = map.get("age").unwrap().as_u64().unwrap() as u32;
-                MyType { name, age }
-            }
-            _ => panic!("Invalid value"),
-        }
-    }
-}

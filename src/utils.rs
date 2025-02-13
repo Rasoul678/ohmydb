@@ -220,3 +220,27 @@ pub fn display_object(obj: &Map<String, JSonValue>, indent: usize) -> String {
     result.push_str(&format!("\n{}}}", indent_str));
     result
 }
+
+pub fn print_insert_error(item_id: JSonValue, table_name: &str) {
+    println!(
+        "{} {}{}{} {}\n\t\t    {} {}\n",
+        "(insert_into_table)".bright_cyan().bold(),
+        "✗ Schade! Record with id \"".bright_red().bold(),
+        item_id.as_str().unwrap().bright_red().bold(),
+        "\" already exists in table".bright_red().bold(),
+        table_name.to_string().bright_cyan().bold(),
+        "✔".bright_green().bold().blink(),
+        "Try to add new record".bright_green().bold()
+    );
+}
+
+pub fn print_update_error(err: &Error) {
+    println!(
+        "{}  {} {}\n\t\t{} {}\n",
+        "(update_table)".bright_cyan().bold(),
+        "✗".bright_red().bold(),
+        err.to_string().bright_red().bold(),
+        "✔".bright_green().bold().blink(),
+        "Consider adding new record".bright_green().bold()
+    );
+}
